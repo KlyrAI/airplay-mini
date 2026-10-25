@@ -76,6 +76,10 @@ case "$*" in
 esac
 exit 0'
 mock osascript 'echo "osascript $*" >> "$MOCK/calls"'
+# lsof ... -Fc: reports the process named in $MOCK/port_owner as the listener.
+mock lsof '[ -f "$MOCK/port_owner" ] && printf "p123
+c%s
+" "$(cat "$MOCK/port_owner")"; exit 0'
 mock curl 'for a in "$@"; do last=$a; done; echo "curl $last" >> "$MOCK/calls"'
 mock stat 'wc -c < "${!#}" | tr -d " "'
 
@@ -224,6 +228,7 @@ echo "Run 4: shairport mode: built-in receiver on, shairport + nqptp down, big l
 write_env shairport
 echo "com.apple.controlcenter|AirplayRecieverEnabled|1" >> "$MOCK/defaults.db"
 touch "$MOCK/airplay_up"            # port 7000 answers, but not Shairport Sync
+echo ControlCenter > "$MOCK/port_owner"
 rm -f "$MOCK/shairport-sync_up" "$MOCK/nqptp_up" "$MOCK/heal_on_restart"
 head -c 5300000 /dev/zero | tr '\0' 'x' > "$HOME/Library/Logs/shairport-sync.log"
 : > "$MOCK/calls"
@@ -235,6 +240,7 @@ check "built-in receiver switched off" wait_for 10 grep -qF "defaults write com.
 check "ControlCenter restarted once for that" wait_for 10 at_least 1 "killall ControlCenter" "$MOCK/calls"
 touch "$MOCK/heal_on_restart"
 check "port held by something else is not healthy" wait_for 10 grep -qF "airplay: shairport receiver not answering" "$LOG"
+check "ControlCenter named as the port 7000 holder" wait_for 5 grep -qF "held by macOS's built-in AirPlay Receiver" "$LOG"
 check "nqptp outage reported" wait_for 10 grep -qF "nqptp: not running" "$LOG"
 check "nqptp then shairport kickstarted" wait_for 15 grep -qF "launchctl kickstart -k gui/$(id -u)/com.airplaymini.shairport" "$MOCK/calls"
 check "nqptp kickstart came first" bash -c "grep -n 'kickstart' '$MOCK/calls' | head -n 1 | grep -q com.airplaymini.nqptp"
@@ -245,6 +251,7 @@ check "all checks ok after recovery" wait_for 10 grep -qF "all checks ok" "$LOG"
 
 echo "com.apple.controlcenter|AirplayRecieverEnabled|1" >> "$MOCK/defaults.db"   # someone turns it back on
 check "built-in receiver switched off again" wait_for 10 at_least 2 "AirplayRecieverEnabled 0" "$MOCK/calls"
+check "...and ControlCenter restarted for it" wait_for 10 at_least 2 "killall ControlCenter" "$MOCK/calls"
 check "agent exits promptly on TERM" stop_agent "$PID"
 
 check "no access-level writes in shairport mode" bash -c '! grep -q "AirplayReceiverAdvertising" "$MOCK/calls"'

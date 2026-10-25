@@ -182,7 +182,14 @@ print_checklist() {
     info "   Note: the built-in receiver asks for approval on the Mac's screen for each new phone."
     n=$((n + 1))
   else
-    ok "AirPlay is Shairport Sync; the watchdog keeps macOS's built-in receiver off."
+    info "$n. As '$AUDIO_USER': System Settings > General > AirDrop & Handoff > AirPlay Receiver: OFF"
+    info "   (if it already shows off, switch it on and off again). macOS's own receiver holds"
+    info "   port 7000, and Shairport Sync can't start until it is off."
+    n=$((n + 1))
+    info "$n. Still as '$AUDIO_USER': when macOS asks to let 'shairport-sync', 'nqptp' or 'spotifyd'"
+    info "   find devices on local networks, click Allow (or turn them on in System Settings >"
+    info "   Privacy & Security > Local Network). Without it, phones get 'unable to connect'."
+    n=$((n + 1))
   fi
   info "$n. Reboot. It should log in as '$AUDIO_USER' by itself. Then run:"
   info "   $INSTALL_DIR/status.sh"

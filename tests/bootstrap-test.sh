@@ -204,6 +204,7 @@ check "shairport conf: device name"     grep -qF "name = \"Kevin's Lobby\";" "$s
 check "shairport conf: CoreAudio"       grep -qF 'output_backend = "coreaudio";' "$sps_conf"
 check "shairport conf: macOS mDNS"      grep -qF 'mdns_backend = "dns-sd";' "$sps_conf"
 check "shairport conf: volume follows sender" grep -qF 'ignore_volume_control = "no";' "$sps_conf"
+check "shairport conf: no session_timeout (must be 0 or >= 60)" bash -c "! grep -q session_timeout '$sps_conf'"
 check "shairport conf: braces balanced" bash -c "[ \$(tr -cd '{' < '$sps_conf' | wc -c) -eq \$(tr -cd '}' < '$sps_conf' | wc -c) ]"
 
 echo "Pinned sources"

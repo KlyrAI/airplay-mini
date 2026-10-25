@@ -67,11 +67,13 @@ use the Mac mini's 3.5 mm headphone jack with a 3.5 mm to RCA cable and set
 4. Do the manual steps it prints. Apple blocks these from scripts without
    MDM:
    - turn on Screen Sharing for `support` only;
-   - log in once as `audio` and click through Setup Assistant.
-5. The watchdog switches macOS's built-in receiver off using an
-   undocumented preference key. After a major macOS update, check that
-   `status.sh` still shows `built-in recv: off`. If not, run
-   `./tools/find-airplay-keys.sh` as `audio` to find the new key.
+   - log in once as `audio` and click through Setup Assistant;
+   - as `audio`, switch AirPlay Receiver **off** in System Settings >
+     General > AirDrop & Handoff. Shairport Sync needs its port 7000;
+   - as `audio`, click **Allow** when macOS asks to let `shairport-sync`,
+     `nqptp` and `spotifyd` find devices on local networks.
+5. After a major macOS update, check that `status.sh` still shows
+   `built-in recv: off` and `airplay port` held by shairport-sync.
 6. Reboot. It should log in as `audio` by itself. Then run
    `/usr/local/airplay-mini/status.sh`; every line should be `ok`.
 7. Test: AirPlay from an iPhone, Spotify Connect from the Spotify app, then

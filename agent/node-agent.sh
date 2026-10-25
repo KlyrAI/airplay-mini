@@ -179,6 +179,20 @@ airplay_answering() {
   [ "$RECEIVER" != "shairport" ] || running shairport-sync
 }
 
+# In shairport mode, say who holds port 7000 if it isn't Shairport Sync. The
+# usual culprit is macOS's built-in receiver (ControlCenter), which the
+# preference write doesn't always switch off on newer macOS versions.
+port_owner_hint() {
+  [ "$RECEIVER" = "shairport" ] || return 0
+  local owner
+  owner=$(lsof +c 0 -nP -iTCP:"$AIRPLAY_PORT" -sTCP:LISTEN -Fc 2>/dev/null | sed -n 's/^c//p' | head -n 1)
+  case "$owner" in
+    ""|shairport-sync) ;;
+    ControlCenter) log "airplay: port $AIRPLAY_PORT is held by macOS's built-in AirPlay Receiver. Turn it off as '$(id -un)': System Settings > General > AirDrop & Handoff > AirPlay Receiver (if it already shows off, switch it on and off again)." ;;
+    *) log "airplay: port $AIRPLAY_PORT is held by '$owner', so Shairport Sync can't start" ;;
+  esac
+}
+
 restart_receiver() {
   if [ "$RECEIVER" = "shairport" ]; then
     launchctl kickstart -k "gui/$(id -u)/$LABEL_NQPTP" >/dev/null 2>&1
@@ -199,7 +213,10 @@ check_airplay() {
     return 0
   fi
   AIRPLAY_MISSES=$((AIRPLAY_MISSES + 1))
-  [ "$AIRPLAY_MISSES" -eq 1 ] && log "airplay: $RECEIVER receiver not answering on port $AIRPLAY_PORT"
+  if [ "$AIRPLAY_MISSES" -eq 1 ]; then
+    log "airplay: $RECEIVER receiver not answering on port $AIRPLAY_PORT"
+    port_owner_hint
+  fi
 
   # Restart after 3 misses (90 s). After 5 restarts in a row, back off to
   # every 10 minutes so a permanent fault doesn't churn.
