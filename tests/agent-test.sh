@@ -63,7 +63,18 @@ echo "killall $*" >> "$MOCK/calls"
 [ "$1" = ControlCenter ] && [ -f "$MOCK/heal_on_restart" ] && touch "$MOCK/airplay_up"
 exit 0'
 
-mock pgrep '[ -f "$MOCK/spotifyd_up" ]'
+# pgrep -u UID -x NAME: running while $MOCK/NAME_up exists.
+mock pgrep 'for a in "$@"; do name=$a; done; [ -f "$MOCK/${name}_up" ]'
+
+# launchctl kickstart -k gui/UID/LABEL: logged; restarting the shairport job
+# "fixes" AirPlay when $MOCK/heal_on_restart exists.
+mock launchctl '
+echo "launchctl $*" >> "$MOCK/calls"
+case "$*" in
+  *com.airplaymini.shairport*)
+    [ -f "$MOCK/heal_on_restart" ] && touch "$MOCK/airplay_up" "$MOCK/shairport-sync_up" ;;
+esac
+exit 0'
 mock osascript 'echo "osascript $*" >> "$MOCK/calls"'
 mock curl 'for a in "$@"; do last=$a; done; echo "curl $last" >> "$MOCK/calls"'
 mock stat 'wc -c < "${!#}" | tr -d " "'
@@ -91,16 +102,21 @@ export AIRPLAY_MINI_SWITCH="$BIN/SwitchAudioSource"
 export AIRPLAY_MINI_ENV="$T/agent.env"
 export AIRPLAY_MINI_INTERVAL=0.3
 
-cat > "$AIRPLAY_MINI_ENV" <<'EOF'
+# write_env RECEIVER
+write_env() {
+  cat > "$AIRPLAY_MINI_ENV" <<EOF
 DEVICE_NAME='Test Room'
 AUDIO_USER=audio
 OUTPUT_MATCH=USB
 LOGIN_VOLUME=65
+AIRPLAY_RECEIVER=$1
 AIRPLAY_ACCESS=same-network
 SPOTIFY_ENABLED=true
 HEALTHCHECK_URL=https://hc.example/abc
 BOOTSTRAP_VERSION=test
 EOF
+}
+write_env builtin
 
 LOG="$HOME/Library/Logs/airplay-mini.log"
 
@@ -201,6 +217,42 @@ PID=$!
 check "missing agent.env logged" wait_for 10 grep -qF "missing $AIRPLAY_MINI_ENV" "$LOG"
 kill "$PID" 2>/dev/null
 mv "$AIRPLAY_MINI_ENV.bak" "$AIRPLAY_MINI_ENV"
+
+# ------------------------------------------- run 4: Shairport Sync receiver
+
+echo "Run 4: shairport mode: built-in receiver on, shairport + nqptp down, big logs"
+write_env shairport
+echo "com.apple.controlcenter|AirplayRecieverEnabled|1" >> "$MOCK/defaults.db"
+touch "$MOCK/airplay_up"            # port 7000 answers, but not Shairport Sync
+rm -f "$MOCK/shairport-sync_up" "$MOCK/nqptp_up" "$MOCK/heal_on_restart"
+head -c 5300000 /dev/zero | tr '\0' 'x' > "$HOME/Library/Logs/shairport-sync.log"
+: > "$MOCK/calls"
+: > "$LOG"
+
+bash "$AGENT" &
+PID=$!
+check "built-in receiver switched off" wait_for 10 grep -qF "defaults write com.apple.controlcenter AirplayRecieverEnabled 0" "$MOCK/calls"
+check "ControlCenter restarted once for that" wait_for 10 at_least 1 "killall ControlCenter" "$MOCK/calls"
+touch "$MOCK/heal_on_restart"
+check "port held by something else is not healthy" wait_for 10 grep -qF "airplay: shairport receiver not answering" "$LOG"
+check "nqptp outage reported" wait_for 10 grep -qF "nqptp: not running" "$LOG"
+check "nqptp then shairport kickstarted" wait_for 15 grep -qF "launchctl kickstart -k gui/$(id -u)/com.airplaymini.shairport" "$MOCK/calls"
+check "nqptp kickstart came first" bash -c "grep -n 'kickstart' '$MOCK/calls' | head -n 1 | grep -q com.airplaymini.nqptp"
+check "AirPlay recovery logged" wait_for 10 grep -qF "airplay: answering again" "$LOG"
+touch "$MOCK/nqptp_up"
+check "nqptp recovery logged" wait_for 10 grep -qF "nqptp: running again" "$LOG"
+check "all checks ok after recovery" wait_for 10 grep -qF "all checks ok" "$LOG"
+
+echo "com.apple.controlcenter|AirplayRecieverEnabled|1" >> "$MOCK/defaults.db"   # someone turns it back on
+check "built-in receiver switched off again" wait_for 10 at_least 2 "AirplayRecieverEnabled 0" "$MOCK/calls"
+check "agent exits promptly on TERM" stop_agent "$PID"
+
+check "no access-level writes in shairport mode" bash -c '! grep -q "AirplayReceiverAdvertising" "$MOCK/calls"'
+check "ControlCenter never restarted by the AirPlay watchdog" test "$(count "killall ControlCenter" "$MOCK/calls")" -eq 2
+check "big shairport log trimmed" grep -qF "logs: trimmed" "$LOG"
+check "trimmed log is empty, copy kept" bash -c "[ ! -s '$HOME/Library/Logs/shairport-sync.log' ] && [ -s '$HOME/Library/Logs/shairport-sync.log.1' ]"
+check "receiver named in start line" grep -qF "receiver shairport" "$LOG"
+dump_if_failed
 
 echo
 echo "$PASS passed, $FAILED failed"

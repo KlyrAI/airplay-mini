@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- NQPTP: the PTP clock companion Shairport Sync needs for AirPlay 2. Runs
+     as the audio user, because it shares the clock with Shairport Sync via
+     POSIX shared memory. Installed by bootstrap.sh. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>@LABEL@</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>@NQPTP@</string>
+  </array>
+  <key>LimitLoadToSessionType</key>
+  <string>Aqua</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>5</integer>
+  <key>StandardOutPath</key>
+  <string>@AUDIO_HOME@/Library/Logs/nqptp.log</string>
+  <key>StandardErrorPath</key>
+  <string>@AUDIO_HOME@/Library/Logs/nqptp.log</string>
+</dict>
+</plist>

@@ -79,9 +79,12 @@ then `/login` inside Claude. Revoke Claude's root access with
 
 | Symptom | Check | Fix |
 |---|---|---|
-| Speaker missing from the AirPlay list | Is the phone on the same network/VLAN as the Mac? `status.sh`: `airplay port`, `airplay mdns` | Restart the receiver: `sudo launchctl asuser $(id -u audio) sudo -u audio killall ControlCenter` (the watchdog also does this after 90 s). Still missing: reboot. |
+| Speaker missing from the AirPlay list | Is the phone on the same network/VLAN as the Mac? `status.sh`: `nqptp`, `shairport`, `airplay port`, `airplay mdns` | `sudo /usr/local/airplay-mini/doctor restart-airplay` (the watchdog also does this after 90 s). Still missing: `doctor logs` for Shairport Sync errors, then reboot. |
+| Mac shows an "Accept AirPlay?" prompt | macOS's built-in receiver is on (`status.sh`: `built-in recv`). | The watchdog switches it off within 30 s. If it keeps coming back after a macOS update, the preference key changed: run `tools/find-airplay-keys.sh` as `audio`. |
+| AirPlay stopped after playing all day | Shairport Sync 5.6.1 bug: playback stops after ~12.5 h of continuous play. | Reconnect from the phone, or `doctor restart-airplay`. Keep `REBOOT_SCHEDULE="Daily 04:30"`. |
+| `shairport` FAIL after `brew upgrade` | A library it links to changed. | Re-run `./bootstrap.sh`; it notices the broken binary and rebuilds. |
 | Connects but no sound | `status.sh`: `output`, `volume`. Preamp input and volume. | Re-plug the DAC cable; the watchdog switches back to it within 30 s. If it's not listed at all, the cable or port is bad. |
-| Very quiet | The phone's AirPlay volume slider sets the Mac's volume. | Turn it up on the phone, or raise `LOGIN_VOLUME` and re-run bootstrap. Set the room level on the preamp. |
+| Very quiet | The phone's AirPlay slider, then the Mac level (`LOGIN_VOLUME`), then the preamp. | Turn it up on the phone, or raise `LOGIN_VOLUME` and re-run bootstrap. Set the room level on the preamp. To ignore phone sliders entirely: `AIRPLAY_FIXED_VOLUME="yes"`. |
 | Speaker missing in Spotify | `status.sh`: `spotifyd`, `spotify mdns`. Log: `~audio/Library/Logs/spotifyd.log` | Restart it: `sudo launchctl kickstart -k gui/$(id -u audio)/com.airplaymini.spotifyd` |
 | `logged in` FAIL | Someone logged out or the login screen is showing. | `sudo shutdown -r now` |
 | `watchdog` FAIL | `sudo cat ~audio/Library/Logs/airplay-mini.launchd.log` | Re-run `./bootstrap.sh` from the repo folder. |
@@ -90,7 +93,7 @@ then `/login` inside Claude. Revoke Claude's root access with
 | Tailscale offline, Mac is on | Client network blocks outbound UDP? | Tailscale falls back to HTTPS relays, so this is rare. Needs someone on site. |
 
 Restart everything: `sudo shutdown -r now`. It comes back by itself: auto-login,
-watchdog, spotifyd and Tailscale all start at boot.
+watchdog, NQPTP, Shairport Sync, spotifyd and Tailscale all start at boot.
 
 ## Logs
 
@@ -98,7 +101,8 @@ watchdog, spotifyd and Tailscale all start at boot.
 |---|---|
 | `~audio/Library/Logs/airplay-mini.log` | Watchdog: output switches, AirPlay restarts, problems. Rotates at 1 MB. |
 | `~audio/Library/Logs/airplay-mini.launchd.log` | Watchdog crashes, if any. |
-| `~audio/Library/Logs/spotifyd.log` | spotifyd. |
+| `~audio/Library/Logs/shairport-sync.log`, `nqptp.log` | The AirPlay receiver and its clock. Trimmed at 5 MB. |
+| `~audio/Library/Logs/spotifyd.log` | spotifyd. Trimmed at 5 MB. |
 | `log show --last 1h --predicate 'process == "tailscaled"'` | Tailscale. |
 
 Read the files in `~audio` with `sudo`.
@@ -114,23 +118,30 @@ not restart Tailscale.
   warns that tailscaled differs, update the daemon from the local network
   (it drops Tailscale for a few seconds):
   `sudo /opt/homebrew/bin/tailscaled install-system-daemon`
-- **macOS updates:** automatic installs are off. Before a major macOS
-  upgrade, check that the AirPlay Receiver still works afterwards. Run
-  `tools/find-airplay-keys.sh` as `audio` (needs the screen) to confirm the
-  preference keys didn't change.
+- **Rebuild Shairport Sync** (e.g. after a library change):
+  `AIRPLAY_MINI_REBUILD=1 ./bootstrap.sh`. The build log is
+  `~/Library/Logs/airplay-mini-build.log` on the admin account.
+- **macOS updates:** automatic installs are off. After a major macOS
+  upgrade, check that `status.sh` still shows `built-in recv: off` and
+  AirPlay plays. If the built-in receiver comes back, run
+  `tools/find-airplay-keys.sh` as `audio` (needs the screen) to find the new
+  preference key.
 
 ## Failure drills
 
 Run these at handover; each should recover without anyone touching the Mac.
 
-1. `sudo launchctl asuser $(id -u audio) sudo -u audio killall ControlCenter`:
-   the AirPlay receiver is back within about 90 s.
-2. Unplug and replug the DAC: output goes back to it within 30 s
+1. `sudo pkill -x shairport-sync`: launchd restarts it within 5 s; AirPlay
+   works again. Then `sudo pkill -x nqptp`: same.
+2. Turn macOS's AirPlay Receiver on in System Settings (as `audio`): the
+   watchdog turns it off again within 30 s, and AirPlay keeps working with no
+   "Accept" prompt on the Mac.
+3. Unplug and replug the DAC: output goes back to it within 30 s
    (`airplay-mini.log` shows "switched").
-3. `sudo pkill -x spotifyd`: launchd restarts it within 10 s.
-4. Pull the power cord, plug it back in: it boots, logs in as `audio`, and
+4. `sudo pkill -x spotifyd`: launchd restarts it within 10 s.
+5. Pull the power cord, plug it back in: it boots, logs in as `audio`, and
    plays again.
-5. From another network: `tailscale ssh support@<hostname>` and Screen
+6. From another network: `tailscale ssh support@<hostname>` and Screen
    Sharing both connect. Unplug the Mac and the healthcheck alerts.
 
 ## Site requirements

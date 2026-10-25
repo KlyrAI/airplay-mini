@@ -11,14 +11,20 @@ fast. Lead with what is wrong and what to do. Keep answers short.
   (or the 3.5 mm jack).
 - The `audio` user (standard account) logs in automatically at boot. All
   audio plays in its session. Nothing plays if it is not logged in.
-- AirPlay: macOS's built-in AirPlay Receiver (part of ControlCenter, TCP
-  port 7000).
+- AirPlay: Shairport Sync 5.6.1 (AirPlay 2, CoreAudio backend) plus NQPTP
+  1.2.9, its PTP clock, both LaunchAgents of `audio`
+  (`com.airplaymini.shairport`, `com.airplaymini.nqptp`), built from source
+  into `/usr/local/bin`. Port 7000. macOS's built-in AirPlay Receiver must
+  stay OFF: it would grab port 7000 and ask for approval on the screen. Check
+  `AIRPLAY_RECEIVER` in `doctor prefs`; `builtin` means the old setup is in
+  use instead.
 - Spotify Connect: spotifyd, a LaunchAgent of `audio`
   (`com.airplaymini.spotifyd`).
 - Watchdog: `/usr/local/airplay-mini/node-agent.sh`, a LaunchAgent of
-  `audio` (`com.airplaymini.agent`). It pins the output to the DAC, restarts
-  ControlCenter when port 7000 stops answering, mutes system sounds, and
-  pings the healthcheck.
+  `audio` (`com.airplaymini.agent`). It pins the output to the DAC, keeps
+  the built-in receiver off, restarts NQPTP + Shairport Sync when port 7000
+  stops answering, mutes system sounds, trims logs, and pings the
+  healthcheck.
 - Remote access: Tailscale (open-source tailscaled, system daemon) with
   Tailscale SSH. That is how this session got here.
 - The repo is the current directory: scripts in `lib/`, `agent/`, `tools/`,
@@ -70,8 +76,17 @@ command to run in a second SSH session, and explain what it does.
 
 - **Not in the AirPlay list:** the phone is on a different network/VLAN or
   guest Wi-Fi with client isolation (check `doctor mdns`; if this Mac is
-  advertised, the problem is the phone's network). Otherwise port 7000 is
-  down: `restart-airplay`. Also check `doctor prefs` for the receiver keys.
+  advertised, the problem is the phone's network). Otherwise Shairport Sync
+  or NQPTP is down or crash-looping: `doctor status`, then `doctor logs` for
+  the error, then `restart-airplay`.
+- **"Accept" prompt on the Mac / port 7000 held by ControlCenter:** the
+  built-in receiver came back on. The watchdog should switch it off within
+  30 s; if not, the preference key may have changed with a macOS update.
+- **Stopped after playing all day:** known Shairport Sync 5.6.1 bug (~12.5 h
+  of continuous play). `restart-airplay` fixes it; the nightly reboot
+  prevents it.
+- **Shairport Sync won't start after a `brew upgrade`:** a linked library
+  changed. The person re-runs `./bootstrap.sh`, which rebuilds it.
 - **Connects, no sound:** output is not the DAC, or the DAC is missing from
   `doctor audio` (cable or port; passive USB-C to RCA cables never work on
   a Mac). Volume or mute. Then the preamp: input select, volume.
@@ -79,7 +94,7 @@ command to run in a second SSH session, and explain what it does.
   network problem (`doctor mdns`). Senders need Spotify Premium.
 - **Nothing works, `logged in` FAIL:** the `audio` session is gone. Reboot,
   with permission.
-- **After a macOS update:** the AirPlay preference keys may have changed.
-  Compare `doctor prefs` with `KEY_ENABLED` / `KEY_ACCESS` in
+- **After a macOS update:** the built-in receiver's preference key may have
+  changed. Compare `doctor prefs` with `KEY_ENABLED` in
   `agent/node-agent.sh`. Finding new keys needs someone at the screen
   (`tools/find-airplay-keys.sh`).

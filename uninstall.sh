@@ -37,7 +37,7 @@ step "Removing launchd jobs"
 if [ -n "$AUDIO_USER" ] && id "$AUDIO_USER" >/dev/null 2>&1; then
   uid=$(id -u "$AUDIO_USER")
   la="$(user_home "$AUDIO_USER")/Library/LaunchAgents"
-  for label in $LABEL_AGENT $LABEL_SPOTIFYD; do
+  for label in $LABEL_AGENT $LABEL_SHAIRPORT $LABEL_NQPTP $LABEL_SPOTIFYD; do
     bootout_quietly "gui/$uid" "$label"
     sudo rm -f "$la/$label.plist"
     ok "$label"
@@ -49,8 +49,10 @@ bootout_quietly system "$LABEL_REBOOT"
 sudo rm -f "/Library/LaunchDaemons/$LABEL_REBOOT.plist"
 ok "$LABEL_REBOOT"
 
-step "Removing $INSTALL_DIR and the Claude troubleshooting hooks"
+step "Removing $INSTALL_DIR, Shairport Sync, NQPTP and the Claude troubleshooting hooks"
 sudo rm -rf "$INSTALL_DIR"
+sudo rm -f /usr/local/bin/shairport-sync /usr/local/bin/nqptp
+info "macOS's built-in AirPlay Receiver stays off; turn it on in System Settings > General > AirDrop & Handoff if wanted."
 sudo rm -f /etc/sudoers.d/airplay-doctor /usr/local/bin/airplay-doctor
 ok "removed (Claude Code itself stays in ~/.local/bin; remove it with: rm -rf ~/.local/bin/claude ~/.local/share/claude ~/.claude)"
 

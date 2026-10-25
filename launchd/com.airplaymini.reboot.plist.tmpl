@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- Weekly reboot, as root. Clears slow leaks and stuck states on a box nobody
-     looks at. Installed by bootstrap.sh from WEEKLY_REBOOT in config.env. -->
+<!-- Scheduled reboot (daily or weekly), as root. Clears slow leaks and stuck
+     states on a box nobody looks at. Installed by bootstrap.sh from
+     REBOOT_SCHEDULE in config.env. -->
 <plist version="1.0">
 <dict>
   <key>Label</key>
@@ -12,12 +13,11 @@
   <array>
     <string>/bin/sh</string>
     <string>-c</string>
-    <string>boot=$(/usr/sbin/sysctl -n kern.boottime | /usr/bin/sed 's/^{ sec = \([0-9]*\).*/\1/'); [ $(( $(/bin/date +%s) - boot )) -gt 3600 ] &amp;&amp; /usr/bin/logger -t airplay-mini "weekly reboot" &amp;&amp; /sbin/shutdown -r now</string>
+    <string>boot=$(/usr/sbin/sysctl -n kern.boottime | /usr/bin/sed 's/^{ sec = \([0-9]*\).*/\1/'); [ $(( $(/bin/date +%s) - boot )) -gt 3600 ] &amp;&amp; /usr/bin/logger -t airplay-mini "scheduled reboot" &amp;&amp; /sbin/shutdown -r now</string>
   </array>
   <key>StartCalendarInterval</key>
   <dict>
-    <key>Weekday</key>
-    <integer>@WEEKDAY@</integer>
+@WEEKDAY_XML@
     <key>Hour</key>
     <integer>@HOUR@</integer>
     <key>Minute</key>

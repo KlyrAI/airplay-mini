@@ -9,6 +9,8 @@ BREW="$BREW_PREFIX/bin/brew"
 
 LABEL_AGENT="com.airplaymini.agent"
 LABEL_SPOTIFYD="com.airplaymini.spotifyd"
+LABEL_NQPTP="com.airplaymini.nqptp"
+LABEL_SHAIRPORT="com.airplaymini.shairport"
 LABEL_REBOOT="com.airplaymini.reboot"
 
 WARNINGS=""

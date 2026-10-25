@@ -97,6 +97,17 @@ check "rejects uppercase AUDIO_USER"       loads FAIL 'AUDIO_USER="Audio"'
 check "rejects empty password"             loads FAIL 'AUDIO_USER_PASSWORD=""'
 check "rejects empty OUTPUT_MATCH"         loads FAIL 'OUTPUT_MATCH=""'
 check "rejects bad tailscale name"         loads FAIL 'TAILSCALE_HOSTNAME="Cafe_1"'
+check "receiver defaults to shairport"     loaded AIRPLAY_RECEIVER shairport
+check "accepts AIRPLAY_RECEIVER=builtin"   loads OK 'AIRPLAY_RECEIVER="builtin"'
+check "rejects AIRPLAY_RECEIVER=airplay"   loads FAIL 'AIRPLAY_RECEIVER="airplay"'
+check "fixed volume defaults to no"        loaded AIRPLAY_FIXED_VOLUME no
+check "rejects AIRPLAY_FIXED_VOLUME=1"     loads FAIL 'AIRPLAY_FIXED_VOLUME="1"'
+check "Daily 04:30 -> no weekday"          loaded REBOOT_WEEKDAY "" 'REBOOT_SCHEDULE="Daily 04:30"'
+check "Daily 04:30 -> hour 4"              loaded REBOOT_HOUR 4 'REBOOT_SCHEDULE="Daily 04:30"'
+check "Daily 04:30 -> minute 30"           loaded REBOOT_MINUTE 30 'REBOOT_SCHEDULE="Daily 04:30"'
+check "REBOOT_SCHEDULE beats WEEKLY_REBOOT" loaded REBOOT_WEEKDAY 3 'REBOOT_SCHEDULE="Wed 01:00"'
+check "empty REBOOT_SCHEDULE turns it off" loaded REBOOT_HOUR "" 'REBOOT_SCHEDULE=""'
+check "rejects 'daily' lowercase"          loads FAIL 'REBOOT_SCHEDULE="daily 04:30"'
 mkdir -p "$T/repo"
 sed 's/^AUDIO_USER_PASSWORD=""/AUDIO_USER_PASSWORD="x"/' "$ROOT/config.env.example" > "$T/repo/config.env"
 check "config.env.example validates once a password is set"   eval '(REPO_DIR="$T/repo"; load_config) >/dev/null 2>&1'
@@ -111,10 +122,22 @@ render_template "$ROOT/launchd/$LABEL_AGENT.plist.tmpl" "$WORK_DIR/agent.plist" 
 render_template "$ROOT/launchd/$LABEL_SPOTIFYD.plist.tmpl" "$WORK_DIR/spotifyd.plist" \
   "LABEL=$LABEL_SPOTIFYD" "SPOTIFYD=/opt/homebrew/bin/spotifyd" \
   "CONF=/Users/audio/.config/spotifyd/spotifyd.conf" "AUDIO_HOME=/Users/audio"
+REBOOT_WEEKDAY=1
 render_template "$ROOT/launchd/$LABEL_REBOOT.plist.tmpl" "$WORK_DIR/reboot.plist" \
-  "LABEL=$LABEL_REBOOT" "WEEKDAY=1" "HOUR=5" "MINUTE=0"
+  "LABEL=$LABEL_REBOOT" "WEEKDAY_XML=$(reboot_weekday_xml)" "HOUR=5" "MINUTE=0"
+# shellcheck disable=SC2034  # read by reboot_weekday_xml
+REBOOT_WEEKDAY=""
+render_template "$ROOT/launchd/$LABEL_REBOOT.plist.tmpl" "$WORK_DIR/reboot-daily.plist" \
+  "LABEL=$LABEL_REBOOT" "WEEKDAY_XML=$(reboot_weekday_xml)" "HOUR=4" "MINUTE=30"
+render_template "$ROOT/launchd/$LABEL_NQPTP.plist.tmpl" "$WORK_DIR/nqptp.plist" \
+  "LABEL=$LABEL_NQPTP" "NQPTP=$NQPTP_BIN" "AUDIO_HOME=/Users/audio"
+render_template "$ROOT/launchd/$LABEL_SHAIRPORT.plist.tmpl" "$WORK_DIR/shairport.plist" \
+  "LABEL=$LABEL_SHAIRPORT" "SHAIRPORT=$SPS_BIN" \
+  "CONF=/Users/audio/.config/shairport-sync/shairport-sync.conf" "AUDIO_HOME=/Users/audio"
 render_template "$ROOT/templates/spotifyd.conf.tmpl" "$WORK_DIR/spotifyd.conf" \
   "DEVICE_NAME=Kevin's Lobby" "BITRATE=320" "CACHE_DIR=/Users/audio/Library/Caches/spotifyd"
+render_template "$ROOT/templates/shairport-sync.conf.tmpl" "$WORK_DIR/shairport-sync.conf" \
+  "DEVICE_NAME=Kevin's Lobby" "IGNORE_VOLUME=no"
 
 check "no placeholders left" bash -c "! grep -l '@[A-Z_]*@' '$WORK_DIR'/*"
 check "unfilled placeholder is caught" bash -c "
@@ -131,7 +154,7 @@ if [ ${#PY[@]} -eq 0 ] && command -v uv >/dev/null 2>&1; then
 fi
 
 if command -v plutil >/dev/null 2>&1; then
-  for f in agent spotifyd reboot; do
+  for f in agent spotifyd reboot reboot-daily nqptp shairport; do
     check "$f.plist passes plutil -lint" plutil -lint -s "$WORK_DIR/$f.plist"
   done
 fi
@@ -155,6 +178,15 @@ r = load("reboot.plist")
 assert r["StartCalendarInterval"] == {"Weekday": 1, "Hour": 5, "Minute": 0}, r
 cmd = r["ProgramArguments"]
 assert cmd[:2] == ["/bin/sh", "-c"] and "&&" in cmd[2] and "shutdown -r now" in cmd[2], cmd
+rd = load("reboot-daily.plist")
+assert rd["StartCalendarInterval"] == {"Hour": 4, "Minute": 30}, rd
+n = load("nqptp.plist")
+assert n["Label"] == "com.airplaymini.nqptp" and n["ProgramArguments"] == ["/usr/local/bin/nqptp"], n
+assert n["KeepAlive"] is True and n["LimitLoadToSessionType"] == "Aqua"
+sp = load("shairport.plist")
+assert sp["ProgramArguments"] == ["/usr/local/bin/shairport-sync", "-c",
+                                  "/Users/audio/.config/shairport-sync/shairport-sync.conf"], sp
+assert sp["StandardErrorPath"] == "/Users/audio/Library/Logs/shairport-sync.log"
 EOF
   check "spotifyd.conf is valid TOML with the right values" "${PY[@]}" - "$WORK_DIR/spotifyd.conf" <<'EOF'
 import sys, tomllib
@@ -166,6 +198,30 @@ EOF
 else
   echo "  skip  plist/TOML parsing (no Python 3.11+ or uv found)"
 fi
+
+sps_conf="$WORK_DIR/shairport-sync.conf"
+check "shairport conf: device name"     grep -qF "name = \"Kevin's Lobby\";" "$sps_conf"
+check "shairport conf: CoreAudio"       grep -qF 'output_backend = "coreaudio";' "$sps_conf"
+check "shairport conf: macOS mDNS"      grep -qF 'mdns_backend = "dns-sd";' "$sps_conf"
+check "shairport conf: volume follows sender" grep -qF 'ignore_volume_control = "no";' "$sps_conf"
+check "shairport conf: braces balanced" bash -c "[ \$(tr -cd '{' < '$sps_conf' | wc -c) -eq \$(tr -cd '}' < '$sps_conf' | wc -c) ]"
+
+echo "Pinned sources"
+check "shairport version check accepts the pinned build" bash -c "
+  . '$ROOT/lib/common.sh'; . '$ROOT/lib/shairport.sh'
+  SPS_BIN='$T/fake-sps'; printf '#!/bin/sh\necho %s-AirPlay2-smi11\n' \"\$SHAIRPORT_VERSION\" > \"\$SPS_BIN\"; chmod +x \"\$SPS_BIN\"
+  shairport_ok"
+check "shairport version check rejects a classic build" bash -c "
+  . '$ROOT/lib/common.sh'; . '$ROOT/lib/shairport.sh'
+  SPS_BIN='$T/fake-sps2'; printf '#!/bin/sh\necho %s-OpenSSL-ao\n' \"\$SHAIRPORT_VERSION\" > \"\$SPS_BIN\"; chmod +x \"\$SPS_BIN\"
+  ! shairport_ok"
+check "nqptp version check" bash -c "
+  . '$ROOT/lib/common.sh'; . '$ROOT/lib/shairport.sh'
+  NQPTP_BIN='$T/fake-nq'; printf '#!/bin/sh\necho \"Version: %s. Shared Memory Interface Version: smi11.\"\n' \"\$NQPTP_VERSION\" > \"\$NQPTP_BIN\"; chmod +x \"\$NQPTP_BIN\"
+  nqptp_ok"
+check "missing binary is not ok" bash -c "
+  . '$ROOT/lib/common.sh'; . '$ROOT/lib/shairport.sh'
+  SPS_BIN='$T/does-not-exist'; ! shairport_ok"
 
 echo "Reboot guard"
 # Run the rendered reboot command with sysctl/logger/shutdown swapped for mocks.

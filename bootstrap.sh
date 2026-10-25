@@ -22,6 +22,8 @@ REPO_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 . "$REPO_DIR/lib/brew.sh"
 # shellcheck source=lib/tailscale.sh
 . "$REPO_DIR/lib/tailscale.sh"
+# shellcheck source=lib/shairport.sh
+. "$REPO_DIR/lib/shairport.sh"
 # shellcheck source=lib/agents.sh
 . "$REPO_DIR/lib/agents.sh"
 
@@ -39,13 +41,16 @@ load_config() {
   AUDIO_USER_PASSWORD=${AUDIO_USER_PASSWORD:-}
   OUTPUT_MATCH=${OUTPUT_MATCH:-}
   LOGIN_VOLUME=${LOGIN_VOLUME:-70}
+  AIRPLAY_RECEIVER=${AIRPLAY_RECEIVER:-shairport}
+  AIRPLAY_FIXED_VOLUME=${AIRPLAY_FIXED_VOLUME:-no}
   AIRPLAY_ACCESS=${AIRPLAY_ACCESS:-same-network}
   TAILSCALE_AUTHKEY=${TAILSCALE_AUTHKEY:-}
   TAILSCALE_HOSTNAME=${TAILSCALE_HOSTNAME:-}
   SPOTIFY_ENABLED=${SPOTIFY_ENABLED:-true}
   SPOTIFY_BITRATE=${SPOTIFY_BITRATE:-320}
   HEALTHCHECK_URL=${HEALTHCHECK_URL:-}
-  WEEKLY_REBOOT=${WEEKLY_REBOOT:-}
+  # WEEKLY_REBOOT is the old name, still honoured.
+  REBOOT_SCHEDULE=${REBOOT_SCHEDULE-${WEEKLY_REBOOT:-}}
 
   local re_name="^[A-Za-z0-9][A-Za-z0-9 ._'-]*$"
   [[ $DEVICE_NAME =~ $re_name ]] \
@@ -64,6 +69,11 @@ load_config() {
     die "LOGIN_VOLUME must be 0-100"
   fi
 
+  case "$AIRPLAY_RECEIVER" in
+    shairport|builtin) ;;
+    *) die "AIRPLAY_RECEIVER must be shairport or builtin" ;;
+  esac
+  case "$AIRPLAY_FIXED_VOLUME" in yes|no) ;; *) die "AIRPLAY_FIXED_VOLUME must be yes or no" ;; esac
   case "$AIRPLAY_ACCESS" in
     same-network|current-user) ;;
     everyone) die "AIRPLAY_ACCESS=everyone lets any nearby iPhone connect without joining the network. Use same-network." ;;
@@ -76,20 +86,21 @@ load_config() {
   case "$HEALTHCHECK_URL" in ""|https://*) ;; *) die "HEALTHCHECK_URL must start with https://" ;; esac
 
   REBOOT_WEEKDAY="" REBOOT_HOUR="" REBOOT_MINUTE=""
-  if [ -n "$WEEKLY_REBOOT" ]; then
+  if [ -n "$REBOOT_SCHEDULE" ]; then
     local day time
-    day=${WEEKLY_REBOOT%% *}
-    time=${WEEKLY_REBOOT#* }
+    day=${REBOOT_SCHEDULE%% *}
+    time=${REBOOT_SCHEDULE#* }
     case "$day" in
+      Daily) REBOOT_WEEKDAY="" ;;
       Sun) REBOOT_WEEKDAY=0 ;; Mon) REBOOT_WEEKDAY=1 ;; Tue) REBOOT_WEEKDAY=2 ;;
       Wed) REBOOT_WEEKDAY=3 ;; Thu) REBOOT_WEEKDAY=4 ;; Fri) REBOOT_WEEKDAY=5 ;;
       Sat) REBOOT_WEEKDAY=6 ;;
-      *) die "WEEKLY_REBOOT day must be Sun..Sat (got '$day')" ;;
+      *) die "REBOOT_SCHEDULE day must be Daily or Sun..Sat (got '$day')" ;;
     esac
-    [[ $time =~ ^[0-2][0-9]:[0-5][0-9]$ ]] || die "WEEKLY_REBOOT time must be HH:MM (got '$time')"
+    [[ $time =~ ^[0-2][0-9]:[0-5][0-9]$ ]] || die "REBOOT_SCHEDULE time must be HH:MM (got '$time')"
     REBOOT_HOUR=$((10#${time%%:*}))
     REBOOT_MINUTE=$((10#${time#*:}))
-    [ "$REBOOT_HOUR" -le 23 ] || die "WEEKLY_REBOOT hour must be 00-23"
+    [ "$REBOOT_HOUR" -le 23 ] || die "REBOOT_SCHEDULE hour must be 00-23"
   fi
 }
 
@@ -165,9 +176,14 @@ print_checklist() {
     n=$((n + 1))
   fi
 
-  info "$n. As '$AUDIO_USER': System Settings > General > AirDrop & Handoff > AirPlay Receiver"
-  info "   is on, Allow AirPlay for: 'Anyone on the same network'. Set a password here if wanted."
-  n=$((n + 1))
+  if [ "$AIRPLAY_RECEIVER" = "builtin" ]; then
+    info "$n. As '$AUDIO_USER': System Settings > General > AirDrop & Handoff > AirPlay Receiver"
+    info "   is on, Allow AirPlay for: 'Anyone on the same network'. Set a password here if wanted."
+    info "   Note: the built-in receiver asks for approval on the Mac's screen for each new phone."
+    n=$((n + 1))
+  else
+    ok "AirPlay is Shairport Sync; the watchdog keeps macOS's built-in receiver off."
+  fi
   info "$n. Reboot. It should log in as '$AUDIO_USER' by itself. Then run:"
   info "   $INSTALL_DIR/status.sh"
   if [ ! -x /usr/local/bin/airplay-doctor ]; then
@@ -200,6 +216,9 @@ main() {
   setup_system
   setup_audio_user
   setup_brew
+  if [ "$AIRPLAY_RECEIVER" = "shairport" ]; then
+    setup_shairport
+  fi
   setup_tailscale
   BOOTSTRAP_VERSION=$(version_string)
   install_scripts

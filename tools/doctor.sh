@@ -5,7 +5,7 @@
 #
 # Read-only:
 #   status            health report (status.sh)
-#   logs [N]          last N lines (default 150) of the watchdog and spotifyd logs
+#   logs [N]          last N lines (default 150) of the watchdog, receiver and spotifyd logs
 #   syslog [MIN]      macOS log for AirPlay / CoreAudio, last MIN minutes (default 30)
 #   audio             output devices, current output, volume, USB audio hardware
 #   mdns              AirPlay and Spotify speakers advertised on the network (3 s browse)
@@ -14,7 +14,7 @@
 #   versions          macOS, package and bootstrap versions
 #
 # Fixes:
-#   restart-airplay   restart ControlCenter (the AirPlay receiver) in the audio session
+#   restart-airplay   restart the AirPlay receiver (NQPTP + Shairport Sync, or ControlCenter)
 #   restart-spotifyd  restart spotifyd
 #   restart-agent     restart the watchdog
 #   reboot            reboot in 1 minute
@@ -85,7 +85,7 @@ case "$cmd" in
 
   logs)
     n=$(positive_int "${1:-}" 150 2000)
-    for f in airplay-mini.log airplay-mini.launchd.log spotifyd.log; do
+    for f in airplay-mini.log airplay-mini.launchd.log shairport-sync.log nqptp.log spotifyd.log; do
       section "$AUDIO_HOME/Library/Logs/$f (last $n)"
       if [ -f "$AUDIO_HOME/Library/Logs/$f" ]; then tail -n "$n" "$AUDIO_HOME/Library/Logs/$f"; else echo "(missing)"; fi
     done
@@ -110,7 +110,7 @@ case "$cmd" in
     section "Audio hardware"
     system_profiler SPAudioDataType 2>/dev/null
     section "USB devices (a USB-C DAC cable should be listed)"
-    system_profiler SPUSBDataType 2>/dev/null | grep -vE '^\s*$'
+    system_profiler SPUSBDataType 2>/dev/null | grep -vE '^[[:space:]]*$'
     ;;
 
   mdns)
@@ -130,7 +130,11 @@ case "$cmd" in
     ;;
 
   prefs)
-    section "AirPlay Receiver (ByHost com.apple.controlcenter)"
+    section "AirPlay receiver in use: ${AIRPLAY_RECEIVER:-builtin}"
+    if [ -f "$AUDIO_HOME/.config/shairport-sync/shairport-sync.conf" ]; then
+      grep -vE '^[[:space:]]*(//|$)' "$AUDIO_HOME/.config/shairport-sync/shairport-sync.conf"
+    fi
+    section "macOS built-in AirPlay Receiver (ByHost com.apple.controlcenter; should be 0 with shairport)"
     sudo -u "$AUDIO_USER" defaults -currentHost read com.apple.controlcenter 2>/dev/null | grep -i airplay || echo "(no AirPlay keys set)"
     section "Sounds"
     for k in "com.apple.systemsound com.apple.sound.uiaudio.enabled" \
@@ -162,11 +166,19 @@ case "$cmd" in
       fi
     done
     echo "tailscaled $(/usr/local/bin/tailscaled --version 2>/dev/null | head -n 1 || echo '?') (system daemon copy)"
+    echo "shairport  $(/usr/local/bin/shairport-sync -V 2>&1 || echo 'not installed')"
+    echo "nqptp      $(/usr/local/bin/nqptp -V 2>&1 || echo 'not installed')"
     ;;
 
   restart-airplay)
     need_session
-    as_audio killall ControlCenter && echo "ControlCenter restarted; the receiver is back in a few seconds."
+    if [ "${AIRPLAY_RECEIVER:-builtin}" = "shairport" ]; then
+      launchctl kickstart -k "gui/$AUDIO_UID/$LABEL_NQPTP" && sleep 1 \
+        && launchctl kickstart -k "gui/$AUDIO_UID/$LABEL_SHAIRPORT" \
+        && echo "NQPTP and Shairport Sync restarted; the speaker is back in a few seconds."
+    else
+      as_audio killall ControlCenter && echo "ControlCenter restarted; the receiver is back in a few seconds."
+    fi
     ;;
 
   restart-spotifyd)

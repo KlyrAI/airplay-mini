@@ -78,24 +78,48 @@ if [ "$console" = "$AUDIO_USER" ]; then
   esac
   vol=$(as_audio osascript -e 'output volume of (get volume settings)' 2>/dev/null)
   muted=$(as_audio osascript -e 'output muted of (get volume settings)' 2>/dev/null)
-  if [ "$muted" = "true" ]; then fail "volume" "MUTED (volume $vol)"; else note "volume" "${vol:-?} (the AirPlay sender's slider changes this)"; fi
+  if [ "$muted" = "true" ]; then
+    fail "volume" "MUTED (volume $vol)"
+  elif [ "${AIRPLAY_RECEIVER:-builtin}" = "shairport" ]; then
+    note "volume" "${vol:-?} (Mac level; AirPlay volume is applied on top by Shairport Sync)"
+  else
+    note "volume" "${vol:-?} (the AirPlay sender's slider changes this)"
+  fi
 fi
 
 # --- AirPlay
-if nc -z -G 2 127.0.0.1 7000 >/dev/null 2>&1; then
-  owner=$(sudo lsof +c 0 -nP -iTCP:7000 -sTCP:LISTEN 2>/dev/null | awk 'NR==2 {print $1}')
-  pass "airplay port" "7000 answering (${owner:-?})"
+receiver=${AIRPLAY_RECEIVER:-builtin}
+owner=$(sudo lsof +c 0 -nP -iTCP:7000 -sTCP:LISTEN 2>/dev/null | awk 'NR==2 {print $1}')
+builtin_on=$(sudo -u "$AUDIO_USER" defaults -currentHost read com.apple.controlcenter AirplayRecieverEnabled 2>/dev/null || echo "?")
+if [ "$receiver" = "shairport" ]; then
+  for job in "$LABEL_NQPTP" "$LABEL_SHAIRPORT"; do
+    st=$(job_state "gui/$AUDIO_UID" "$job")
+    case "$st" in running*) pass "${job#com.airplaymini.}" "$st" ;; *) fail "${job#com.airplaymini.}" "${st:-not loaded} (doctor logs)" ;; esac
+  done
+  case "$owner" in
+    shairport-sync) pass "airplay port" "7000 held by shairport-sync" ;;
+    "") fail "airplay port" "nothing on 7000; Shairport Sync not running (doctor restart-airplay)" ;;
+    *) fail "airplay port" "7000 held by '$owner', not shairport-sync (built-in receiver back on?)" ;;
+  esac
+  if [ "$builtin_on" = "1" ]; then
+    fail "built-in recv" "macOS's receiver is ON; the watchdog should switch it off within 30 s"
+  else
+    pass "built-in recv" "off (Shairport Sync is the receiver)"
+  fi
 else
-  fail "airplay port" "nothing on 7000; receiver off or ControlCenter stuck"
+  if [ -n "$owner" ]; then
+    pass "airplay port" "7000 answering ($owner)"
+  else
+    fail "airplay port" "nothing on 7000; receiver off or ControlCenter stuck"
+  fi
+  access=$(sudo -u "$AUDIO_USER" defaults -currentHost read com.apple.controlcenter AirplayReceiverAdvertising 2>/dev/null || echo "?")
+  note "airplay prefs" "built-in receiver enabled=$builtin_on access=$access (1 user, 2 same network, 3 everyone)"
 fi
 if browses_as _airplay._tcp "$DEVICE_NAME"; then
   pass "airplay mdns" "'$DEVICE_NAME' advertised on the network"
 else
   fail "airplay mdns" "'$DEVICE_NAME' not seen in a 2 s browse"
 fi
-enabled=$(sudo -u "$AUDIO_USER" defaults -currentHost read com.apple.controlcenter AirplayRecieverEnabled 2>/dev/null || echo "?")
-access=$(sudo -u "$AUDIO_USER" defaults -currentHost read com.apple.controlcenter AirplayReceiverAdvertising 2>/dev/null || echo "?")
-note "airplay prefs" "enabled=$enabled access=$access (1 user, 2 same network, 3 everyone)"
 
 # --- Spotify Connect
 if [ "${SPOTIFY_ENABLED:-false}" = "true" ]; then

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Shairport Sync: the AirPlay 2 receiver. Runs as the audio user so it
+     plays through that session's default output. Unlike macOS's built-in
+     receiver, it never asks for approval on the Mac's screen.
+     Installed by bootstrap.sh. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>@LABEL@</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>@SHAIRPORT@</string>
+    <string>-c</string>
+    <string>@CONF@</string>
+  </array>
+  <key>LimitLoadToSessionType</key>
+  <string>Aqua</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>5</integer>
+  <key>StandardOutPath</key>
+  <string>@AUDIO_HOME@/Library/Logs/shairport-sync.log</string>
+  <key>StandardErrorPath</key>
+  <string>@AUDIO_HOME@/Library/Logs/shairport-sync.log</string>
+</dict>
+</plist>
