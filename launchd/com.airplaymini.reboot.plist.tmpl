@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Weekly reboot, as root. Clears slow leaks and stuck states on a box nobody
+     looks at. Installed by bootstrap.sh from WEEKLY_REBOOT in config.env. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>@LABEL@</string>
+  <!-- Skips the reboot if the Mac has been up for under an hour, so a fast
+       boot can never land inside the same scheduled minute and loop. -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>-c</string>
+    <string>boot=$(/usr/sbin/sysctl -n kern.boottime | /usr/bin/sed 's/^{ sec = \([0-9]*\).*/\1/'); [ $(( $(/bin/date +%s) - boot )) -gt 3600 ] &amp;&amp; /usr/bin/logger -t airplay-mini "weekly reboot" &amp;&amp; /sbin/shutdown -r now</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Weekday</key>
+    <integer>@WEEKDAY@</integer>
+    <key>Hour</key>
+    <integer>@HOUR@</integer>
+    <key>Minute</key>
+    <integer>@MINUTE@</integer>
+  </dict>
+</dict>
+</plist>

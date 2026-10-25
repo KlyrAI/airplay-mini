@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Watchdog for the audio session. Runs as the audio user at login and is
+     restarted by launchd if it ever exits. Installed by bootstrap.sh. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>@LABEL@</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>@INSTALL_DIR@/node-agent.sh</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>LimitLoadToSessionType</key>
+  <string>Aqua</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <!-- The agent logs to airplay-mini.log itself; this catches early crashes. -->
+  <key>StandardOutPath</key>
+  <string>@AUDIO_HOME@/Library/Logs/airplay-mini.launchd.log</string>
+  <key>StandardErrorPath</key>
+  <string>@AUDIO_HOME@/Library/Logs/airplay-mini.launchd.log</string>
+</dict>
+</plist>

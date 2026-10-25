@@ -1,0 +1,19 @@
+# spotifyd config, written by bootstrap.sh from config.env. Edits here are
+# overwritten on the next bootstrap run.
+# Reference: https://docs.spotifyd.rs/configuration/
+[global]
+device_name = "@DEVICE_NAME@"
+device_type = "speaker"
+
+# Homebrew builds spotifyd on macOS with only the portaudio backend. It plays
+# to the session's default output, which node-agent.sh keeps on the DAC.
+backend = "portaudio"
+volume_controller = "softvol"
+initial_volume = 100
+bitrate = @BITRATE@
+
+# No login credentials here: phones and laptops on the same network find the
+# speaker via zeroconf (Spotify Premium needed). The cache keeps only the last
+# session's credentials so it reconnects quickly after a restart.
+cache_path = "@CACHE_DIR@"
+no_audio_cache = true

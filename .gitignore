@@ -1,0 +1,3 @@
+# Per-site config holds passwords and the Tailscale auth key.
+config.env
+.DS_Store
