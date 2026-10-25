@@ -170,6 +170,9 @@ print_checklist() {
   n=$((n + 1))
   info "$n. Reboot. It should log in as '$AUDIO_USER' by itself. Then run:"
   info "   $INSTALL_DIR/status.sh"
+  if [ ! -x /usr/local/bin/airplay-doctor ]; then
+    info "Optional: $REPO_DIR/tools/claude-setup.sh sets up Claude Code for troubleshooting over SSH."
+  fi
 }
 
 # ----------------------------------------------------------------------- main

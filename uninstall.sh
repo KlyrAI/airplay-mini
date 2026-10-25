@@ -49,9 +49,10 @@ bootout_quietly system "$LABEL_REBOOT"
 sudo rm -f "/Library/LaunchDaemons/$LABEL_REBOOT.plist"
 ok "$LABEL_REBOOT"
 
-step "Removing $INSTALL_DIR"
+step "Removing $INSTALL_DIR and the Claude troubleshooting hooks"
 sudo rm -rf "$INSTALL_DIR"
-ok "removed"
+sudo rm -f /etc/sudoers.d/airplay-doctor /usr/local/bin/airplay-doctor
+ok "removed (Claude Code itself stays in ~/.local/bin; remove it with: rm -rf ~/.local/bin/claude ~/.local/share/claude ~/.claude)"
 
 if [ "$DISABLE_AUTOLOGIN" = "true" ]; then
   step "Auto-login"

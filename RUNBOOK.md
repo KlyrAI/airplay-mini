@@ -36,6 +36,45 @@ Tailscale admin console.
 Each line is `ok`, `FAIL` or `--` (information only). The exit code is the
 number of failures. The last lines show the watchdog log.
 
+## Troubleshoot with Claude
+
+Once per Mac, as the admin user (over SSH is fine):
+
+```sh
+cd ~/airplay-mini && ./tools/claude-setup.sh
+```
+
+It installs Claude Code (CLI only) and an `airplay-doctor` command. Then,
+any time:
+
+```sh
+airplay-doctor                           # health check + diagnosis
+airplay-doctor "spotify isn't showing"   # start from a description
+airplay-doctor --continue                # pick up the last session
+```
+
+First run: accept "trust this folder", then log in with your Claude account
+(Pro, Max, Team or Enterprise). Over SSH, press `c` to copy the login URL,
+open it on your laptop, and paste the code back into the terminal.
+
+What Claude can do there:
+- Root access only through `/usr/local/airplay-mini/doctor`, which runs
+  fixed diagnostics and a few safe fixes. The admin user can run it without
+  a password; every other `sudo` still needs the password, which Claude
+  doesn't have.
+- It asks before any restart, reboot or file edit. It is told never to touch
+  Tailscale, the `audio` user or auto-login, and it is blocked from reading
+  `config.env`.
+- When something needs more, it gives you the command to run yourself in a
+  second SSH session.
+
+You can use the same helper by hand: `sudo /usr/local/airplay-mini/doctor help`.
+
+If Claude says you're not logged in over SSH, the macOS keychain is probably
+locked. Run `security unlock-keychain ~/Library/Keychains/login.keychain-db`,
+then `/login` inside Claude. Revoke Claude's root access with
+`sudo rm /etc/sudoers.d/airplay-doctor`.
+
 ## Fixes
 
 | Symptom | Check | Fix |

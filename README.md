@@ -68,6 +68,15 @@ use the Mac mini's 3.5 mm headphone jack with a 3.5 mm to RCA cable and set
    `/usr/local/airplay-mini/status.sh`; every line should be `ok`.
 7. Test: AirPlay from an iPhone, Spotify Connect from the Spotify app, then
    the failure drills in [RUNBOOK.md](RUNBOOK.md#failure-drills).
+8. Optional: `./tools/claude-setup.sh` installs Claude Code, so you can
+   SSH in later and run `airplay-doctor` to troubleshoot. No IDE needed.
+   See [RUNBOOK.md](RUNBOOK.md#troubleshoot-with-claude). You can also run
+   it before bootstrap, to get help if bootstrap fails.
+
+The repo is private, so cloning on the Mac needs GitHub access: either
+`brew install gh && gh auth login && gh repo clone KlyrAI/airplay-mini`
+(Homebrew needs installing first), or download the zip from GitHub on
+another machine and copy it over.
 
 ## On site
 
@@ -94,6 +103,10 @@ use the Mac mini's 3.5 mm headphone jack with a 3.5 mm to RCA cable and set
 | `status.sh` | Health report for IT (also installed to `/usr/local/airplay-mini`). |
 | `uninstall.sh` | Removes the jobs and installed scripts. Leaves Tailscale. |
 | `tools/find-airplay-keys.sh` | Finds the AirPlay Receiver preference keys on a new macOS. |
+| `tools/doctor.sh` | Diagnostics and safe fixes as root; installed as `/usr/local/airplay-mini/doctor`. |
+| `tools/claude-setup.sh` | Installs Claude Code + the `airplay-doctor` command for troubleshooting over SSH. |
+| `tools/claude/doctor-prompt.md` | On-device rules `airplay-doctor` gives Claude. |
+| `.claude/settings.json`, `CLAUDE.md` | Claude Code permissions and project notes. |
 | `tests/` | Runs anywhere bash runs, with macOS tools mocked. |
 
 ## Tests

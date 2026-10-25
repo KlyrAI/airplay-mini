@@ -1,0 +1,44 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sudo -n /usr/local/airplay-mini/doctor status)",
+      "Bash(sudo -n /usr/local/airplay-mini/doctor logs *)",
+      "Bash(sudo -n /usr/local/airplay-mini/doctor syslog *)",
+      "Bash(sudo -n /usr/local/airplay-mini/doctor audio)",
+      "Bash(sudo -n /usr/local/airplay-mini/doctor mdns)",
+      "Bash(sudo -n /usr/local/airplay-mini/doctor prefs)",
+      "Bash(sudo -n /usr/local/airplay-mini/doctor tailscale)",
+      "Bash(sudo -n /usr/local/airplay-mini/doctor versions)",
+      "Bash(sudo -n /usr/local/airplay-mini/doctor help)",
+      "Bash(pmset -g *)",
+      "Bash(sw_vers *)",
+      "Bash(system_profiler *)",
+      "Bash(ifconfig *)",
+      "Bash(scutil --get *)",
+      "Bash(scutil --dns *)",
+      "Bash(ping -c *)",
+      "Bash(uptime)",
+      "Bash(df -h *)",
+      "Bash(tailscale status *)",
+      "Bash(tailscale ip *)",
+      "Bash(git status *)",
+      "Bash(git log *)",
+      "Bash(git diff *)"
+    ],
+    "ask": [
+      "Bash(sudo -n /usr/local/airplay-mini/doctor restart-*)",
+      "Bash(sudo -n /usr/local/airplay-mini/doctor reboot)"
+    ],
+    "deny": [
+      "Read(./config.env)",
+      "Edit(./config.env)",
+      "Bash(tailscale up *)",
+      "Bash(tailscale down *)",
+      "Bash(tailscale set *)",
+      "Bash(tailscale logout *)",
+      "Bash(sudo tailscale *)",
+      "Bash(launchctl bootout *)",
+      "Bash(sudo launchctl *)"
+    ]
+  }
+}

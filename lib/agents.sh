@@ -28,6 +28,7 @@ install_scripts() {
   sudo install -d -o root -g wheel -m 755 "$INSTALL_DIR" "$INSTALL_DIR/lib"
   sudo install -o root -g wheel -m 755 "$REPO_DIR/agent/node-agent.sh" "$INSTALL_DIR/node-agent.sh"
   sudo install -o root -g wheel -m 755 "$REPO_DIR/status.sh" "$INSTALL_DIR/status.sh"
+  sudo install -o root -g wheel -m 755 "$REPO_DIR/tools/doctor.sh" "$INSTALL_DIR/doctor"
   sudo install -o root -g wheel -m 644 "$REPO_DIR/lib/common.sh" "$INSTALL_DIR/lib/common.sh"
 
   # Only what the agent and status.sh need. Readable by every local user.
@@ -45,7 +46,7 @@ install_scripts() {
     printf 'BOOTSTRAP_VERSION=%q\n' "$BOOTSTRAP_VERSION"
   } > "$env"
   sudo install -o root -g wheel -m 644 "$env" "$AGENT_ENV"
-  ok "node-agent.sh, status.sh, agent.env installed"
+  ok "node-agent.sh, status.sh, doctor, agent.env installed"
 }
 
 install_user_agents() {
